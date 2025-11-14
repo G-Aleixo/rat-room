@@ -93,3 +93,44 @@ impl Message {
         buf
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_bytes() {
+        let bytes = vec![
+            4, 6,
+            b't', b'e', b's', b't',
+            b'h', b'e', b'l', b'l', b'o', b'!', 
+        ];
+
+        assert_eq!(Message::from_bytes(&bytes).unwrap(),
+                   Message { from: "test".into() , data: "hello!".into() })
+    }
+
+    #[test]
+    fn round_trip() {
+        let message = Message {
+            from: "test".into(),
+            data: "hello world!".into()
+        };
+
+        let bytes = message.to_bytes();
+        let result = Message::from_bytes(&bytes).unwrap();
+
+        assert_eq!(message, result);
+    }
+
+    #[test]
+    fn invalid_bytes() {
+        let bytes = vec![
+            4, 20,
+            b't', b'e', b's', b't',
+            b'h', b'e', b'l', b'l', b'o', b'!'
+        ];
+
+        assert!(Message::from_bytes(&bytes).is_none())
+    }
+}
