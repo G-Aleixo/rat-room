@@ -7,9 +7,10 @@ use tokio::{
 
 use rat_room::message::Message;
 
-async fn handle_client(client: TcpStream, _address: SocketAddr, tx: broadcast::Sender<(Message, task::Id)>) {
+fn handle_client(client: TcpStream, _address: SocketAddr, tx: broadcast::Sender<(Message, task::Id)>) {
+    println!("client handler function started");
     // split stream into buffered reader and writer
-    let (rd, mut wr) = io::split(client);
+    let (mut rd, mut wr) = io::split(client);
 
     // receive messages from other tasks here
     let mut msg_rx = tx.subscribe();
@@ -23,7 +24,16 @@ async fn handle_client(client: TcpStream, _address: SocketAddr, tx: broadcast::S
     tokio::spawn(async move {
         // handle reading data from client then sending to others
         loop {
+            if let Ok(msg) = Message::read(&mut rd).await {
+                println!("client handler {task_id} has received message '{msg}'");
+                tx.send((msg, task_id)).unwrap();
+            } else {
+                println!("read/send task {task_id} has failed to receive message");
+                // send kill signal to other program
+                exit_tx.send(false).unwrap();
 
+                break;
+            }
         };
     });
 
@@ -67,18 +77,21 @@ async fn handle_client(client: TcpStream, _address: SocketAddr, tx: broadcast::S
 }
 
 #[tokio::main]
-async fn main() -> io::Result<()>{
+async fn main() -> io::Result<()> {
     let (tx, _) = broadcast::channel::<(Message, task::Id)>(32);
 
-    let listener = TcpListener::bind("127.0.0.1:8034").await?;
+    println!("starting socket");
+    let listener = TcpListener::bind("127.0.0.1:8080").await?;
 
+    println!("starting listening loop");
     loop {
         let (sock, addr) = listener.accept().await?;
+        println!("client accepted at {addr}");
 
         let tx = tx.clone();
 
-        tokio::spawn(async move {
-            handle_client(sock, addr, tx).await;
-        });
+        println!("spawning client handler function");
+        // client handler just spawns some more tasks
+        handle_client(sock, addr, tx);
     }
 }
