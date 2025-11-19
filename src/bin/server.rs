@@ -2,12 +2,12 @@ use std::net::SocketAddr;
 use tokio::{
     io,
     net::{TcpListener, TcpStream},
-    sync::{broadcast, oneshot}, task
+    sync::{broadcast, oneshot}
 };
 
 use rat_room::message::Message;
 
-fn handle_client(client: TcpStream, _address: SocketAddr, tx: broadcast::Sender<(Message, task::Id)>) {
+fn handle_client(client: TcpStream, _address: SocketAddr, tx: broadcast::Sender<(Message, uuid::Uuid)>) {
     println!("client handler function started");
     // split stream into buffered reader and writer
     let (mut rd, mut wr) = io::split(client);
@@ -19,16 +19,16 @@ fn handle_client(client: TcpStream, _address: SocketAddr, tx: broadcast::Sender<
     // makes the 2 tasks quit at roughly the same time
     let (exit_tx, exit_rx) = oneshot::channel::<bool>();
     
-    let task_id = tokio::task::id();
+    let pair_uuid = uuid::Uuid::new_v4();
 
     tokio::spawn(async move {
         // handle reading data from client then sending to others
         loop {
             if let Ok(msg) = Message::read(&mut rd).await {
-                println!("client handler {task_id} has received message '{msg}'");
-                tx.send((msg, task_id)).unwrap();
+                println!("client handler {pair_uuid} has received message '{msg}'");
+                tx.send((msg, pair_uuid)).unwrap();
             } else {
-                println!("read/send task {task_id} has failed to receive message");
+                println!("read/send task {pair_uuid} has failed to receive message");
                 // send kill signal to other program
                 exit_tx.send(false).unwrap();
 
@@ -44,14 +44,14 @@ fn handle_client(client: TcpStream, _address: SocketAddr, tx: broadcast::Sender<
             result = exit_rx => {
                 match result {
                     Ok(true) => {
-                        println!("recv/write task {task_id} shutting down");
+                        println!("recv/write task {pair_uuid} shutting down");
                         //todo: shut down other stuff
                     }
                     Ok(false) => {
-                        println!("recv/write task {task_id} has erroed somehow, shutting down");
+                        println!("recv/write task {pair_uuid} has erroed somehow, shutting down");
                         //todo: shut down due to error
                     }
-                    Err(_) => println!("recv/write task {task_id} failed to receive rx value, shutting down")
+                    Err(_) => println!("recv/write task {pair_uuid} failed to receive rx value, shutting down")
                 }
             }
 
@@ -59,12 +59,12 @@ fn handle_client(client: TcpStream, _address: SocketAddr, tx: broadcast::Sender<
                 loop {
                     match msg_rx.recv().await {
                         Ok(msg) => {
-                            if msg.1 == task_id {
+                            if msg.1 == pair_uuid {
                                 continue;
                             }
-                            println!("{task_id} sending data to client");
+                            println!("{pair_uuid} sending data to client");
                             if let Err(e) = msg.0.write(&mut wr).await {
-                                eprintln!("{task_id} failed to write to client: {e}");
+                                eprintln!("{pair_uuid} failed to write to client: {e}");
                                 break;
                             }
                         }
@@ -78,7 +78,7 @@ fn handle_client(client: TcpStream, _address: SocketAddr, tx: broadcast::Sender<
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let (tx, _) = broadcast::channel::<(Message, task::Id)>(32);
+    let (tx, _) = broadcast::channel::<(Message, uuid::Uuid)>(32);
 
     println!("starting socket");
     let listener = TcpListener::bind("127.0.0.1:8080").await?;
