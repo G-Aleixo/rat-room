@@ -1,6 +1,6 @@
 use std::{io, time::Duration};
 use color_eyre::eyre::Result;
-use crossterm::{event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode}};
+use crossterm::{event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode}};
 use rat_room::message::Message;
 use ratatui::{Terminal, layout::{Constraint, Direction, Layout, Position}, prelude::CrosstermBackend, widgets::{Block, Borders, Paragraph, Wrap}};
 use tokio::{
@@ -156,7 +156,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App, mut
 
         if event::poll(Duration::from_millis(200))? {
             match event::read()? {
-                Event::Key(key) => match key.code {
+                Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
                     KeyCode::Char(c) => app.input.push(c),
                     KeyCode::Backspace => { app.input.pop(); } // don't return
                     KeyCode::Enter => {
