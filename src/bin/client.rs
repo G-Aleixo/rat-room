@@ -1,4 +1,4 @@
-use std::{io, time::Duration};
+use std::{cmp::min, io, time::Duration};
 use color_eyre::eyre::Result;
 use crossterm::{event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode}};
 use rat_room::message::Message;
@@ -126,7 +126,10 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App, mut
                 ])
                 .split(f.area());
 
-            let message_text = app.messages.join("\n");
+            let slice: Vec<&str> = app.messages.iter().map(|s| s.as_str()).collect();
+            // amount-size
+            let visible_messages = &slice[min(app.messages.len(), chunks[0].height.into())..];
+            let message_text = visible_messages.join("\n");
             let messages = Paragraph::new(message_text)
                 .block(Block::default().title("Messages").borders(Borders::ALL))
                 .wrap(Wrap { trim: false });
