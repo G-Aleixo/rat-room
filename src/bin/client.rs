@@ -1,4 +1,4 @@
-use std::{cmp::min, io, time::Duration};
+use std::{io, time::Duration};
 use color_eyre::eyre::Result;
 use crossterm::{event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode}};
 use rat_room::message::Message;
@@ -25,7 +25,7 @@ impl App {
                 "Type in the box and press enter to send a message".into()
             ],
             input: String::new(),
-            max_messages: 10,
+            max_messages: 128,
             user_name: "no_name".into(),
         }
     }
@@ -128,7 +128,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App, mut
 
             let slice: Vec<&str> = app.messages.iter().map(|s| s.as_str()).collect();
             // amount-size
-            let visible_messages = &slice[min(app.messages.len(), chunks[0].height.into())..];
+            let visible_messages = &slice[app.messages.len().saturating_sub(chunks[0].height.saturating_sub(2) as usize)..];
             let message_text = visible_messages.join("\n");
             let messages = Paragraph::new(message_text)
                 .block(Block::default().title("Messages").borders(Borders::ALL))
