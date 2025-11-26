@@ -1,6 +1,6 @@
 use std::{io, time::Duration};
 use color_eyre::eyre::Result;
-use crossterm::{event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode}};
+use crossterm::{event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode}};
 use rat_room::message::Message;
 use ratatui::{Terminal, layout::{Constraint, Direction, Layout, Position}, prelude::CrosstermBackend, widgets::{Block, Borders, Paragraph, Wrap}};
 use tokio::{
@@ -25,7 +25,7 @@ impl App {
                 "Type in the box and press enter to send a message".into()
             ],
             input: String::new(),
-            max_messages: 10,
+            max_messages: 128,
             user_name: "no_name".into(),
         }
     }
@@ -126,7 +126,10 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App, mut
                 ])
                 .split(f.area());
 
-            let message_text = app.messages.join("\n");
+            let slice: Vec<&str> = app.messages.iter().map(|s| s.as_str()).collect();
+            // amount-size
+            let visible_messages = &slice[app.messages.len().saturating_sub(chunks[0].height.saturating_sub(2) as usize)..];
+            let message_text = visible_messages.join("\n");
             let messages = Paragraph::new(message_text)
                 .block(Block::default().title("Messages").borders(Borders::ALL))
                 .wrap(Wrap { trim: false });
@@ -156,7 +159,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App, mut
 
         if event::poll(Duration::from_millis(200))? {
             match event::read()? {
-                Event::Key(key) => match key.code {
+                Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
                     KeyCode::Char(c) => app.input.push(c),
                     KeyCode::Backspace => { app.input.pop(); } // don't return
                     KeyCode::Enter => {
