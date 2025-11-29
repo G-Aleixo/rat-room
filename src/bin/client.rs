@@ -160,7 +160,11 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App, mut
         if event::poll(Duration::from_millis(200))? {
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
-                    KeyCode::Char(c) => app.input.push(c),
+                    KeyCode::Char(c) => {
+                        if app.input.len() < u8::MAX.into() {
+                            app.input.push(c)
+                        }
+                    }
                     KeyCode::Backspace => { app.input.pop(); } // don't return
                     KeyCode::Enter => {
                         if !app.input.trim().is_empty() {
