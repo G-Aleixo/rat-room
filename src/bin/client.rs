@@ -2,7 +2,7 @@ use std::{io, time::Duration};
 use color_eyre::eyre::Result;
 use crossterm::{event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind}, execute, terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode}};
 use rat_room::message::Message;
-use ratatui::{Terminal, layout::{Constraint, Direction, Layout, Position}, prelude::CrosstermBackend, widgets::{Block, Borders, Paragraph, Wrap}};
+use ratatui::{Terminal, layout::{Constraint, Direction, Layout, Position}, prelude::CrosstermBackend, widgets::{Block, Borders, Paragraph}};
 use tokio::{
     io::{
         BufReader
@@ -118,11 +118,14 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App, mut
         }
 
         terminal.draw(|f| {
+            // (d-2) * (width-2) >= 510
+            let input_height = (255 + app.user_name.len() + 3) / (f.area().width - 2) as usize + 3;
+
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints(vec![
                     Constraint::Min(0),
-                    Constraint::Length(4)
+                    Constraint::Length(input_height as u16)
                 ])
                 .split(f.area());
 
@@ -138,21 +141,26 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App, mut
 
             f.render_widget(messages, chunks[0]);
 
-            let input_display = format!("{} > {}", app.user_name, app.input);
+            let wrapped_input = wrap_messages(&vec![app.user_name.clone() + " > " + &app.input.clone()], chunks[1].width.saturating_sub(2).into());
+            
+            let input_display = wrapped_input.join("\n");
             
             let input = Paragraph::new(input_display)
-                .block(Block::default().title("Input").borders(Borders::ALL))
-                .wrap(Wrap { trim: true });
+                .block(Block::default().title("Input").borders(Borders::ALL));
+
             f.render_widget(input, chunks[1]);
 
             // Cursor placement
-            let inner_width = chunks[1].width.saturating_sub(2);
+            let line = wrapped_input.len() as u16 - 1;
 
-
-            let len = (app.input.len() + app.user_name.len()) as u16 + 3;
-
-            let line = len / inner_width;
-            let col  = len % inner_width;
+            let col = wrapped_input[wrapped_input.len()-1].len() as u16;
+                    
+            // hot fix for case "name > ", where the cursor is incorrectly placed one char after the ">" instead of 2  
+            let col = if col == app.user_name.len() as u16 + 2 {
+                col + 1
+            } else {
+                col
+            };
 
             let cursor_x = chunks[1].x + 1 + col;   // inside left border
             let cursor_y = chunks[1].y + 1 + line;  // move down for wrapped lines
@@ -200,7 +208,8 @@ fn wrap_messages(messages: &Vec<String>, width: usize) -> Vec<String> {
     let mut cows: Vec<std::borrow::Cow<str>> = Vec::with_capacity(messages.len());
 
     let wrap_config = textwrap::Options::new(width)
-        .word_splitter(textwrap::WordSplitter::NoHyphenation);
+        .word_splitter(textwrap::WordSplitter::NoHyphenation)
+        .break_words(true);
 
     for message in messages {
         cows.extend(textwrap::wrap(message.as_str(), &wrap_config));
