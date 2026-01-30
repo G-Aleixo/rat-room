@@ -57,14 +57,9 @@ async fn main() -> Result<()> {
     // recv messages task
     let (tx_net, rx_ui) = mpsc::channel::<Message>(100);
     tokio::spawn(async move {
-        loop {
-            match Message::read(&mut reader).await {
-                Ok(msg) => {
-                    if tx_net.send(msg).await.is_err() {
-                        break;
-                    }
-                }
-                Err(_) => break,
+        while let Ok(msg) = Message::read(&mut reader).await {
+            if tx_net.send(msg).await.is_err() {
+                break;
             }
         }
     });
@@ -215,9 +210,7 @@ fn wrap_messages(messages: &Vec<String>, width: usize) -> Vec<String> {
         cows.extend(textwrap::wrap(message.as_str(), &wrap_config));
     };
 
-    let wrapped = cows.into_iter()
+    cows.into_iter()
         .map(|c| c.into_owned())
-        .collect();
-
-    return wrapped;
+        .collect()
 }

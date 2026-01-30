@@ -56,19 +56,14 @@ fn handle_client(client: TcpStream, _address: SocketAddr, tx: broadcast::Sender<
             }
 
             _ = async {
-                loop {
-                    match msg_rx.recv().await {
-                        Ok(msg) => {
-                            if msg.1 == pair_uuid {
-                                continue;
-                            }
-                            println!("{pair_uuid} sending data to client");
-                            if let Err(e) = msg.0.write(&mut wr).await {
-                                eprintln!("{pair_uuid} failed to write to client: {e}");
-                                break;
-                            }
-                        }
-                        Err(_) => break, // broadcast closed
+                while let Ok(msg) = msg_rx.recv().await {
+                    if msg.1 == pair_uuid {
+                        continue;
+                    }
+                    println!("{pair_uuid} sending data to client");
+                    if let Err(e) = msg.0.write(&mut wr).await {
+                        eprintln!("{pair_uuid} failed to write to client: {e}");
+                        break;
                     }
                 }
             } => {}
